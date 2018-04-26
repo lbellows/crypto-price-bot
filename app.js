@@ -4,24 +4,37 @@ const readline = require('readline');
 const cli = require('clui'),
     clc = require('cli-color');
 const os = require('os');
-const Line          = cli.Line,
-    LineBuffer    = cli.LineBuffer;
+const Line = cli.Line,
+    LineBuffer = cli.LineBuffer;
 const size = require('window-size');
 const Gdax = require('gdax');
 
 console.log('Starting...\n')
 
 var baseUrl = 'https://api.binance.com';
+
 const client = Binance({
     apiKey: config.key,
     apiSecret: config.secret
 });
 
+//Patch with status method
+client.CheckStatus = function(interval = 5000){
+  var checkStatus = () => fetch(baseUrl + '/wapi/v3/systemStatus.html')
+    .then(res => res.json())
+    .then(res => {
+      console.log(res)
+      if(res.status == 0)
+        Beep();
+    })
+  
+  setInterval(checkStatus, interval);
+}
+
 const btc = 'BTCUSDT';
 const ark = 'ARKBTC';
 const binancePairs = [ark, 'BATBTC', 'FUNBTC', 'BNBUSDT'];
 const gdaxPairs = ['BTC-USD', 'LTC-USD', 'ETH-USD'].reverse();
-//map gdax => binance
 binancePairs.push(...gdaxPairs.map(ticker => ticker.replace('-', '') + 'T'));
 var gdaxPrice = {
   'BTCUSDT': ' ',
@@ -59,6 +72,7 @@ websocket.on('error', err => {
 
 });
 
+//dont alert more often than every 10 seconds
 setInterval(() => doBeep = true, 10000);
 
 client.ws.ticker(binancePairs, ticker => {
@@ -109,17 +123,7 @@ function AlertHit(ticker){
   // )
 }
 
-function CheckStatus(){
-  var checkStatus = () => fetch(baseUrl + '/wapi/v3/systemStatus.html')
-    .then(res => res.json())
-    .then(res => {
-      console.log(res)
-      if(res.status == 0)
-        Beep();
-    })
-  
-  setInterval(checkStatus, 5000);
-}
+
 
 function Beep() {process.stderr.write("\007"); }
 
