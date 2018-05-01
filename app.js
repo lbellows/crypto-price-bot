@@ -1,48 +1,37 @@
 const config = require('./.config.json');
 const Binance = require('binance-api-node').default;
 const readline = require('readline');
-const cli = require('clui'),
-    clc = require('cli-color');
+const cli = require('clui'), clc = require('cli-color');
+const Line = cli.Line, LineBuffer = cli.LineBuffer;
 const os = require('os');
-const Line = cli.Line,
-    LineBuffer = cli.LineBuffer;
 const size = require('window-size');
 const Gdax = require('gdax');
+const cc = require('cryptocompare');
+const fs = require('fs');
 
 console.log('Starting...\n')
-
+//cc.coinList().then(data => fs.appendFileSync('coinlist.json', JSON.stringify(data)));
+//Config
 var baseUrl = 'https://api.binance.com';
-
-const client = Binance({
-    apiKey: config.key,
-    apiSecret: config.secret
-});
+const client = Binance({apiKey: config.key,apiSecret: config.secret});
+const btc = 'BTCUSDT';
+const ark = 'ARKBTC';
+const binancePairs = [ark, 'BATBTC', 'FUNBTC', 'BNBUSDT', 'NEOUSDT'];
+const gdaxPairs = ['BTC-USD', 'LTC-USD', 'ETH-USD'].reverse();
+binancePairs.push(...gdaxPairs.map(ticker => ticker.replace('-', '') + 'T'));
+var gdaxPrice = { 'BTCUSDT': ' ', 'LTCUSDT': ' ', 'ETHUSDT': ' ' }
+var doBeep = true;
 
 //Patch with status method
 client.CheckStatus = function(interval = 5000){
   var checkStatus = () => fetch(baseUrl + '/wapi/v3/systemStatus.html')
     .then(res => res.json())
     .then(res => {
-      console.log(res)
       if(res.status == 0)
         Beep();
     })
-  
   setInterval(checkStatus, interval);
 }
-
-const btc = 'BTCUSDT';
-const ark = 'ARKBTC';
-const binancePairs = [ark, 'BATBTC', 'FUNBTC', 'BNBUSDT'];
-const gdaxPairs = ['BTC-USD', 'LTC-USD', 'ETH-USD'].reverse();
-binancePairs.push(...gdaxPairs.map(ticker => ticker.replace('-', '') + 'T'));
-var gdaxPrice = {
-  'BTCUSDT': ' ',
-  'LTCUSDT': ' ',
-  'ETHUSDT': ' '
-}
-
-var doBeep = true;
 
 var headers = new Line()
   .padding(2)
@@ -53,33 +42,22 @@ var headers = new Line()
   .fill()
   .output();
 
-binancePairs.forEach(() => console.log());
-binancePairs.forEach(() => console.log());
-
-
+binancePairs.forEach(() => console.log()); binancePairs.forEach(() => console.log());
 const websocket = new Gdax.WebsocketClient(gdaxPairs, 'wss://ws-feed.gdax.com', null, {channels: ['ticker']});
 
 websocket.on('message', data => {
-  if(data.price){
-    //console.log(data)
+  if(data.price)
     gdaxPrice[data.product_id.replace('-', '') + 'T'] = data.price;
-  }
 });
 
 websocket.on('error', err => {
   var keys = Object.keys(gdaxPrice);
   keys.forEach(key => gdaxPrice[key] = "ERROR");
-
 });
 
-//dont alert more often than every 10 seconds
-setInterval(() => doBeep = true, 10000);
-
 client.ws.ticker(binancePairs, ticker => {
-
   var offset = binancePairs.indexOf(ticker.symbol);
   readline.cursorTo(process.stdout, 0, size.height - (offset + binancePairs.length) );
-
   //TODO: output %/amt change 15 min
   var line = new Line()
   .padding(2)
@@ -98,6 +76,22 @@ client.ws.ticker(binancePairs, ticker => {
   }
 });
 
+setInterval(() => doBeep = true, 10000);
+
+function AlertHit(ticker){
+  return (
+    ticker.symbol == btc &&
+    (
+      ticker.curDayClose >= 9090
+      || ticker.curDayClose <= 8690
+    )
+  ) 
+  // ||
+  // (
+  //   ticker.symbol == ark && (ticker.curDayClose <= 0.0003200 || ticker.curDayClose >= 3900)
+  // )
+}
+
 function TrimZeros(str){
   return parseFloat(str).toString();
 }
@@ -108,22 +102,6 @@ process.on('SIGINT', () => {
   console.log('\n\nEnding, RAM Usage: ' + ((mem.heapUsed)/1024/1024).toFixed(2) + 'MB'); 
   process.exit(1);
 });
-
-function AlertHit(ticker){
-  return (
-    ticker.symbol == btc &&
-    (
-      ticker.curDayClose >= 9390
-      || ticker.curDayClose <= 8590
-    )
-  ) 
-  // ||
-  // (
-  //   ticker.symbol == ark && (ticker.curDayClose <= 0.0003200 || ticker.curDayClose >= 3900)
-  // )
-}
-
-
 
 function Beep() {process.stderr.write("\007"); }
 
