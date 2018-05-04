@@ -19,7 +19,7 @@ const ark = 'ARKBTC';
 const binancePairs = [ark, 'BATBTC', 'FUNBTC', 'BNBUSDT', 'NEOUSDT'];
 const gdaxPairs = ['BTC-USD', 'LTC-USD', 'ETH-USD'].reverse();
 binancePairs.push(...gdaxPairs.map(ticker => ticker.replace('-', '') + 'T'));
-var gdaxPrice = { 'BTCUSDT': ' ', 'LTCUSDT': ' ', 'ETHUSDT': ' ' }
+var gdaxPrice = { 'BTCUSDT': ' ', 'LTCUSDT': ' ', 'ETHUSDT': ' '}
 var doBeep = true;
 
 //Patch with status method
@@ -53,6 +53,9 @@ websocket.on('message', data => {
 websocket.on('error', err => {
   var keys = Object.keys(gdaxPrice);
   keys.forEach(key => gdaxPrice[key] = "ERROR");
+
+  console.log('gdax error: ', err);
+  websocket = new Gdax.WebsocketClient(gdaxPairs, 'wss://ws-feed.gdax.com', null, {channels: ['ticker']});
 });
 
 client.ws.ticker(binancePairs, ticker => {
@@ -68,6 +71,9 @@ client.ws.ticker(binancePairs, ticker => {
   .fill()
   .output();
 
+  //TODO: Add % difference for arbitrage
+//https://www.mathsisfun.com/percentage-difference.html
+
   if(AlertHit(ticker)){
     if(doBeep){
       Beep();
@@ -82,8 +88,8 @@ function AlertHit(ticker){
   return (
     ticker.symbol == btc &&
     (
-      ticker.curDayClose >= 9090
-      || ticker.curDayClose <= 8690
+      ticker.curDayClose >= 9790
+      || ticker.curDayClose <= 9480
     )
   ) 
   // ||
