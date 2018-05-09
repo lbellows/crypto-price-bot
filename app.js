@@ -6,32 +6,22 @@ const Line = cli.Line, LineBuffer = cli.LineBuffer;
 const os = require('os');
 const size = require('window-size');
 const Gdax = require('gdax');
-const cc = require('cryptocompare');
-const fs = require('fs');
 
 console.log('Starting...\n')
-//cc.coinList().then(data => fs.appendFileSync('coinlist.json', JSON.stringify(data)));
+
 //Config
 var baseUrl = 'https://api.binance.com';
-const client = Binance({apiKey: config.key,apiSecret: config.secret});
-const btc = 'BTCUSDT';
-const ark = 'ARKBTC';
-const binancePairs = [ark, 'BATBTC', 'FUNBTC', 'BNBUSDT', 'NEOUSDT'];
+const binance = Binance({apiKey: config.key,apiSecret: config.secret});
+const btc = 'BTCUSDT', eth = 'ETHUSDT', ark = 'ARKBTC';
+const binancePairs = [ark, 'BATBTC', 'FUNBTC', 'BNBUSDT', 'NEOUSDT', 'XRPUSDT'];
 const gdaxPairs = ['BTC-USD', 'LTC-USD', 'ETH-USD'].reverse();
-binancePairs.push(...gdaxPairs.map(ticker => ticker.replace('-', '') + 'T'));
-var gdaxPrice = { 'BTCUSDT': ' ', 'LTCUSDT': ' ', 'ETHUSDT': ' '}
+const gdaxPrices = gdaxPairs.map(ticker =>  
+  new Object()[ToBinance(ticker)] = ' '
+);
+binancePairs.push(...gdaxPairs.map(ticker => ToBinance(ticker)));
 var doBeep = true;
-
 //Patch with status method
-client.CheckStatus = function(interval = 5000){
-  var checkStatus = () => fetch(baseUrl + '/wapi/v3/systemStatus.html')
-    .then(res => res.json())
-    .then(res => {
-      if(res.status == 0)
-        Beep();
-    })
-  setInterval(checkStatus, interval);
-}
+binance.CheckStatus = CheckStatus;
 
 var headers = new Line()
   .padding(2)
@@ -43,22 +33,19 @@ var headers = new Line()
   .output();
 
 binancePairs.forEach(() => console.log()); binancePairs.forEach(() => console.log());
-const websocket = new Gdax.WebsocketClient(gdaxPairs, 'wss://ws-feed.gdax.com', null, {channels: ['ticker']});
 
-websocket.on('message', data => {
-  if(data.price)
-    gdaxPrice[data.product_id.replace('-', '') + 'T'] = data.price;
+const gdaxClient = new Gdax.WebsocketClient(gdaxPairs, 'wss://ws-feed.gdax.com', 
+  null, {channels: ['ticker']
 });
 
-websocket.on('error', err => {
-  var keys = Object.keys(gdaxPrice);
-  keys.forEach(key => gdaxPrice[key] = "ERROR");
-
-  console.log('gdax error: ', err);
-  websocket = new Gdax.WebsocketClient(gdaxPairs, 'wss://ws-feed.gdax.com', null, {channels: ['ticker']});
+gdaxClient.on('message', data => {
+  if(data.price) gdaxPrices[ToBinance(data.product_id)] = data.price;
 });
 
-client.ws.ticker(binancePairs, ticker => {
+gdaxClient.on('error', err => GdaxError);
+gdaxClient.on('close', err => GdaxError);
+
+binance.ws.ticker(binancePairs, ticker => {
   var offset = binancePairs.indexOf(ticker.symbol);
   readline.cursorTo(process.stdout, 0, size.height - (offset + binancePairs.length) );
   //TODO: output %/amt change 15 min
@@ -66,7 +53,7 @@ client.ws.ticker(binancePairs, ticker => {
   .padding(2)
   .column(ticker.symbol, 10)
   .column(ticker.curDayClose, 15)
-  .column(gdaxPrice[ticker.symbol] || ' ', 15)
+  .column(gdaxPrices[ticker.symbol] || ' ', 15)
   .column(new Date().toLocaleTimeString(), 20)
   .fill()
   .output();
@@ -75,10 +62,8 @@ client.ws.ticker(binancePairs, ticker => {
 //https://www.mathsisfun.com/percentage-difference.html
 
   if(AlertHit(ticker)){
-    if(doBeep){
-      Beep();
-      doBeep = false;
-    }
+    if(doBeep)
+      doBeep = Beep();
   }
 });
 
@@ -88,14 +73,30 @@ function AlertHit(ticker){
   return (
     ticker.symbol == btc &&
     (
-      ticker.curDayClose >= 9790
-      || ticker.curDayClose <= 9480
+      ticker.curDayClose >=9480
+      || ticker.curDayClose <= 9180
     )
+
+    // || (
+    //   ticker.symbol == eth &&
+    //   (
+    //     ticker.curDayClose >= 789
+    //     || ticker.curDayClose <= 721
+    //   )
+    // )
+
   ) 
-  // ||
-  // (
-  //   ticker.symbol == ark && (ticker.curDayClose <= 0.0003200 || ticker.curDayClose >= 3900)
-  // )
+
+}
+
+function ToBinance(str) { return str.replace('-', '') + 'T';}
+
+function GdaxError(err){
+  var keys = Object.keys(gdaxPrices);
+  keys.forEach(key => gdaxPrices[key] = "ERROR");
+
+  console.log('gdax error: ', err);
+  gdaxClient = new Gdax.WebsocketClient(gdaxPairs, 'wss://ws-feed.gdax.com', null, {channels: ['ticker']});
 }
 
 function TrimZeros(str){
@@ -109,6 +110,21 @@ process.on('SIGINT', () => {
   process.exit(1);
 });
 
-function Beep() {process.stderr.write("\007"); }
+function Beep() {process.stderr.write("\007"); return false;}
+
+function CheckStatus(interval = 5000){
+  var checkStatus = () => fetch(baseUrl + '/wapi/v3/systemStatus.html')
+    .then(res => res.json())
+    .then(res => {
+      if(res.status == 0)
+        Beep();
+    })
+  setInterval(checkStatus, interval);
+}
+
+
+//const cc = require('cryptocompare');
+//const fs = require('fs');
+//cc.coinList().then(data => fs.appendFileSync('coinlist.json', JSON.stringify(data)));
 
 // client.prices().then(res => console.log(res) );
