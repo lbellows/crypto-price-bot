@@ -2,7 +2,7 @@ const config = require('./.config.json');
 const Bot = require('./index')
 const readline = require('readline');
 console.log('Starting...\n')
-
+//
 
 const btc = 'BTCUSDT', eth = 'ETHUSDT', ark = 'ARKBTC';
 const binancePairs = [ark, 'BATBTC', 'FUNBTC','BNBUSDT', 'NEOUSDT']; //'BNBUSDT', 'NEOUSDT'
